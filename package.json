@@ -1,12 +1,52 @@
 {
-  "name": "backupmail",
-  "module": "index.ts",
+  "name": "mailbak",
+  "version": "0.2.0",
+  "description": "Universal email backup and migration CLI tool for Gmail, SpaceMail, and IMAP servers - Built with Bun!",
   "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "module": "src/index.ts",
+  "bin": {
+    "mailbak": "bin/mailbak.ts"
   },
-  "peerDependencies": {
+  "scripts": {
+    "dev": "bun run bin/mailbak.ts",
+    "build": "bun build bin/mailbak.ts --outdir=dist --target=bun --entrypoints bin/mailbak.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "keywords": [
+    "email",
+    "backup",
+    "migration",
+    "gmail",
+    "imap",
+    "mbox",
+    "cli",
+    "bun",
+    "tui",
+    "cyberpunk",
+    "spacemail"
+  ],
+  "author": "codingstark-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codingstark-dev/backupmail.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codingstark-dev/backupmail/issues"
+  },
+  "homepage": "https://github.com/codingstark-dev/backupmail#readme",
+  "dependencies": {
+    "@opentui/core": "^0.1.72",
+    "googleapis": "^144.0.0",
+    "imap": "^0.8.19",
+    "mailbak": "^0.2.0",
+    "mailparser": "^3.7.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/imap": "^0.8.40",
+    "@types/mailparser": "^3.4.6",
     "typescript": "^5"
   }
 }
