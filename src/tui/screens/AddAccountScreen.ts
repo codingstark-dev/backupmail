@@ -17,7 +17,8 @@ import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
 import { getConfigManager } from '../../utils/config';
 import { ImapProvider } from '../../providers/imap';
-import type { ImapAccount } from '../../types';
+import { JmapProvider } from '../../providers/jmap';
+import type { ImapAccount, JmapAccount } from '../../types';
 
 enum AddAccountStep {
   CHOOSE_PROVIDER = 'choose_provider',
@@ -25,6 +26,7 @@ enum AddAccountStep {
   ENTER_HOST = 'enter_host',
   ENTER_PORT = 'enter_port',
   ENTER_PASSWORD = 'enter_password',
+  ENTER_JMAP_URL = 'enter_jmap_url',
   TESTING = 'testing',
   SUCCESS = 'success',
   ERROR = 'error',
@@ -39,11 +41,12 @@ export class AddAccountScreen {
   private currentStep: AddAccountStep = AddAccountStep.CHOOSE_PROVIDER;
   
   // Form data
-  private providerType: 'gmail' | 'imap' | 'spacemail' = 'imap';
+  private providerType: 'gmail' | 'imap' | 'spacemail' | 'jmap' = 'imap';
   private email = '';
   private host = '';
   private port = '993';
   private password = '';
+  private jmapUrl = '';
   
   // UI elements
   private contentContainer: BoxRenderable;
@@ -52,6 +55,7 @@ export class AddAccountScreen {
   private hostInput?: InputRenderable;
   private portInput?: InputRenderable;
   private passwordInput?: InputRenderable;
+  private jmapUrlInput?: InputRenderable;
   private statusText?: TextRenderable;
 
   constructor(renderer: CliRenderer, navigation: NavigationManager) {
@@ -117,6 +121,7 @@ export class AddAccountScreen {
     this.hostInput = undefined;
     this.portInput = undefined;
     this.passwordInput = undefined;
+    this.jmapUrlInput = undefined;
     this.statusText = undefined;
   }
 
@@ -137,9 +142,10 @@ export class AddAccountScreen {
     this.providerMenu = new SelectRenderable(this.renderer, {
       id: 'provider-menu',
       width: 60,
-      height: 5,
+      height: 6,
       options: [
         { name: '✉️  Generic IMAP Server', description: 'Any IMAP-compatible email service' },
+        { name: '🔗  JMAP (Fastmail, etc.)', description: 'Modern JMAP protocol (Fastmail, etc.)' },
         { name: '📧  SpaceMail (IMAP)', description: 'SpaceMail email service' },
         { name: '🔷  Gmail (OAuth2)', description: 'Gmail with OAuth2 (not implemented yet)' },
       ],
@@ -157,12 +163,16 @@ export class AddAccountScreen {
           this.showEmailInput();
           break;
         case 1:
+          this.providerType = 'jmap';
+          this.showEmailInput();
+          break;
+        case 2:
           this.providerType = 'spacemail';
           this.host = 'mail.spacemail.com';
           this.port = '993';
           this.showEmailInput();
           break;
-        case 2:
+        case 3:
           this.showGmailNotImplemented();
           break;
       }
@@ -214,6 +224,8 @@ export class AddAccountScreen {
       this.email = value;
       if (this.providerType === 'spacemail') {
         this.showPasswordInput();
+      } else if (this.providerType === 'jmap') {
+        this.showJmapUrlInput();
       } else {
         this.showHostInput();
       }
@@ -289,6 +301,186 @@ export class AddAccountScreen {
     });
 
     this.portInput.focus();
+  }
+
+  private showJmapUrlInput() {
+    this.clearContent();
+    this.currentStep = AddAccountStep.ENTER_JMAP_URL;
+    
+    const instructionText = new TextRenderable(this.renderer, {
+      id: 'instruction',
+      content: `Email: ${this.email}\n\nSelect JMAP provider or enter custom URL:`,
+      fg: theme.colors.text,
+      position: 'relative',
+      left: 10,
+      top: 0,
+    });
+    this.contentContainer.add(instructionText);
+
+    const jmapProviderMenu = new SelectRenderable(this.renderer, {
+      id: 'jmap-provider-menu',
+      width: 60,
+      height: 3,
+      options: [
+        { name: '🚀  Fastmail', description: 'https://api.fastmail.com/jmap/session' },
+        { name: '🔧  Custom URL', description: 'Enter a custom JMAP session URL' },
+      ],
+      position: 'relative',
+      left: 10,
+      top: 4,
+      focusedBackgroundColor: theme.colors.backgroundLight,
+    });
+    this.contentContainer.add(jmapProviderMenu);
+
+    jmapProviderMenu.on(SelectRenderableEvents.ITEM_SELECTED, (index) => {
+      if (index === 0) {
+        this.jmapUrl = 'https://api.fastmail.com/jmap/session';
+        this.showJmapPasswordInput();
+      } else {
+        this.showCustomJmapUrlInput();
+      }
+    });
+
+    jmapProviderMenu.focus();
+  }
+
+  private showCustomJmapUrlInput() {
+    this.clearContent();
+    
+    const instructionText = new TextRenderable(this.renderer, {
+      id: 'instruction',
+      content: `Email: ${this.email}\n\nEnter JMAP session URL:`,
+      fg: theme.colors.text,
+      position: 'relative',
+      left: 10,
+      top: 0,
+    });
+    this.contentContainer.add(instructionText);
+
+    this.jmapUrlInput = new InputRenderable(this.renderer, {
+      id: 'jmap-url-input',
+      width: 60,
+      placeholder: 'https://jmap.example.com/.well-known/jmap',
+      position: 'relative',
+      left: 10,
+      top: 4,
+      focusedBackgroundColor: theme.colors.backgroundLight,
+    });
+    this.contentContainer.add(this.jmapUrlInput);
+
+    this.jmapUrlInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+      this.jmapUrl = value;
+      this.showJmapPasswordInput();
+    });
+
+    this.jmapUrlInput.focus();
+  }
+
+  private showJmapPasswordInput() {
+    this.clearContent();
+    this.currentStep = AddAccountStep.ENTER_PASSWORD;
+    
+    const instructionText = new TextRenderable(this.renderer, {
+      id: 'instruction',
+      content: `Email: ${this.email}\nJMAP URL: ${this.jmapUrl}\n\nEnter password or app password:`,
+      fg: theme.colors.text,
+      position: 'relative',
+      left: 10,
+      top: 0,
+    });
+    this.contentContainer.add(instructionText);
+
+    this.passwordInput = new InputRenderable(this.renderer, {
+      id: 'password-input',
+      width: 50,
+      placeholder: 'Enter your password',
+      position: 'relative',
+      left: 10,
+      top: 5,
+      focusedBackgroundColor: theme.colors.backgroundLight,
+    });
+    this.contentContainer.add(this.passwordInput);
+
+    this.passwordInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+      this.password = value;
+      this.testJmapConnection();
+    });
+
+    this.passwordInput.focus();
+  }
+
+  private async testJmapConnection() {
+    this.clearContent();
+    this.currentStep = AddAccountStep.TESTING;
+    
+    this.statusText = new TextRenderable(this.renderer, {
+      id: 'status',
+      content: 'Testing JMAP connection...\n\nPlease wait...',
+      fg: theme.colors.info,
+      position: 'relative',
+      left: 10,
+      top: 2,
+    });
+    this.contentContainer.add(this.statusText);
+
+    try {
+      const accountId = `jmap_${Date.now()}`;
+      const account: JmapAccount = {
+        id: accountId,
+        name: this.email,
+        email: this.email,
+        type: 'jmap',
+        sessionUrl: this.jmapUrl,
+        username: this.email,
+        createdAt: new Date(),
+      };
+
+      const provider = new JmapProvider(account, this.password);
+      const success = await provider.testConnection();
+
+      if (!success) {
+        throw new Error('Connection test failed');
+      }
+
+      // Save account
+      const config = getConfigManager();
+      await config.saveAccount(account);
+      await config.saveCredentials(accountId, { password: this.password });
+
+      this.showJmapSuccess();
+    } catch (error) {
+      this.showError(`${error}`);
+    }
+  }
+
+  private showJmapSuccess() {
+    this.clearContent();
+    this.currentStep = AddAccountStep.SUCCESS;
+    
+    this.statusText = new TextRenderable(this.renderer, {
+      id: 'status',
+      content: `${theme.icons.success} JMAP account added successfully!\n\nEmail: ${this.email}\nJMAP URL: ${this.jmapUrl}\n\nPress Enter to continue or Esc to go back.`,
+      fg: theme.colors.success,
+      position: 'relative',
+      left: 10,
+      top: 2,
+    });
+    this.contentContainer.add(this.statusText);
+
+    // Update footer
+    this.footer.updateShortcuts([
+      { key: 'Enter', description: 'Continue' },
+      { key: 'Esc', description: 'Main Menu' },
+    ]);
+
+    // Handle Enter to continue
+    const enterHandler = (key: any) => {
+      if (key.name === 'return' || key.name === 'enter') {
+        this.renderer.keyInput.off('keypress', enterHandler);
+        this.navigation.back();
+      }
+    };
+    this.renderer.keyInput.on('keypress', enterHandler);
   }
 
   private showPasswordInput() {
@@ -440,6 +632,7 @@ export class AddAccountScreen {
     if (this.hostInput) this.hostInput.destroy();
     if (this.portInput) this.portInput.destroy();
     if (this.passwordInput) this.passwordInput.destroy();
+    if (this.jmapUrlInput) this.jmapUrlInput.destroy();
     if (this.statusText) this.statusText.destroy();
     this.contentContainer.destroy();
     this.container.destroy();

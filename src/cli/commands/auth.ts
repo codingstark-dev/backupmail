@@ -6,15 +6,17 @@ import { prompt, password, confirm, select } from '../prompts';
 import { getConfigManager } from '../../utils/config';
 import { logger } from '../../utils/logger';
 import { ProgressTracker } from '../../utils/progress';
-import type { ImapAccount, GmailAccount } from '../../types';
+import type { ImapAccount, GmailAccount, JmapAccount } from '../../types';
 import { ImapProvider } from '../../providers/imap';
 import { GmailProvider } from '../../providers/gmail';
+import { JmapProvider } from '../../providers/jmap';
 
 export async function addAccount(): Promise<void> {
   const type = await select({
     message: 'Select email provider:',
     choices: [
       { name: 'Gmail (with OAuth2)', value: 'gmail' },
+      { name: 'JMAP (Fastmail, etc.)', value: 'jmap' },
       { name: 'SpaceMail (IMAP)', value: 'spacemail' },
       { name: 'Generic IMAP Server', value: 'imap' },
     ],
@@ -22,6 +24,8 @@ export async function addAccount(): Promise<void> {
 
   if (type === 'gmail') {
     await addGmailAccount();
+  } else if (type === 'jmap') {
+    await addJmapAccount();
   } else {
     await addImapAccount(type === 'spacemail');
   }
@@ -90,6 +94,86 @@ async function addGmailAccount(): Promise<void> {
     progress.succeed(`Gmail account ${email} added successfully!`);
   } catch (error) {
     progress.fail(`Failed to add Gmail account: ${error}`);
+    throw error;
+  }
+}
+
+async function addJmapAccount(): Promise<void> {
+  logger.info('Setting up JMAP account...\n');
+  logger.info('JMAP is supported by Fastmail and other modern email providers.\n');
+
+  const email = await prompt({
+    message: 'Enter your email address',
+    validate: (input) => input.includes('@') || 'Please enter a valid email',
+  });
+
+  // Provide common JMAP session URLs
+  const sessionUrlChoice = await select({
+    message: 'Select your JMAP provider or enter custom URL:',
+    choices: [
+      { name: 'Fastmail', value: 'https://api.fastmail.com/jmap/session' },
+      { name: 'Custom URL', value: 'custom' },
+    ],
+  });
+
+  let sessionUrl: string;
+  if (sessionUrlChoice === 'custom') {
+    sessionUrl = await prompt({
+      message: 'Enter JMAP session URL (e.g., https://jmap.example.com/.well-known/jmap)',
+      validate: (input) => {
+        try {
+          new URL(input);
+          return true;
+        } catch {
+          return 'Please enter a valid URL';
+        }
+      },
+    });
+  } else {
+    sessionUrl = sessionUrlChoice;
+  }
+
+  const username = await prompt({
+    message: 'Username (usually your email)',
+    default: email,
+    validate: (input) => input.length > 0 || 'Username is required',
+  });
+
+  const pass = await password('Password or App Password');
+
+  if (!pass) {
+    throw new Error('Password is required');
+  }
+
+  const accountId = `jmap_${Date.now()}`;
+  const account: JmapAccount = {
+    id: accountId,
+    name: email,
+    email,
+    type: 'jmap',
+    sessionUrl,
+    username,
+    createdAt: new Date(),
+  };
+
+  const progress = new ProgressTracker();
+  progress.start('Testing JMAP connection...');
+
+  try {
+    const provider = new JmapProvider(account, pass);
+    const success = await provider.testConnection();
+
+    if (!success) {
+      throw new Error('Connection test failed');
+    }
+
+    const config = getConfigManager();
+    await config.saveAccount(account);
+    await config.saveCredentials(accountId, { password: pass });
+
+    progress.succeed(`JMAP account ${email} added successfully!`);
+  } catch (error) {
+    progress.fail(`Failed to add JMAP account: ${error}`);
     throw error;
   }
 }
@@ -181,7 +265,8 @@ export async function listAccounts(): Promise<void> {
   logger.info('\nConfigured accounts:\n');
 
   for (const account of accounts) {
-    logger.raw(`  ${account.type === 'gmail' ? '📧' : '✉️'}  ${account.email} (${account.type})`);
+    const icon = account.type === 'gmail' ? '📧' : account.type === 'jmap' ? '🔗' : '✉️';
+    logger.raw(`  ${icon}  ${account.email} (${account.type})`);
     logger.raw(`     ID: ${account.id}`);
     logger.raw(`     Added: ${account.createdAt.toLocaleString()}`);
     logger.raw('');

@@ -4,7 +4,8 @@
 
 import { ImapProvider } from './providers/imap';
 import { GmailProvider } from './providers/gmail';
-import type { Account, ImapAccount, GmailAccount } from './types';
+import { JmapProvider } from './providers/jmap';
+import type { Account, ImapAccount, GmailAccount, JmapAccount } from './types';
 import type { IEmailProvider } from './providers/base';
 
 export function getProviderForAccount(account: Account, credentials: any): IEmailProvider {
@@ -14,6 +15,9 @@ export function getProviderForAccount(account: Account, credentials: any): IEmai
   } else if (account.type === 'gmail') {
     const gmailAccount = account as GmailAccount;
     return new GmailProvider(gmailAccount, credentials.clientId, credentials.clientSecret);
+  } else if (account.type === 'jmap') {
+    const jmapAccount = account as JmapAccount;
+    return new JmapProvider(jmapAccount, credentials.password);
   }
   
   throw new Error(`Unknown account type: ${account.type}`);

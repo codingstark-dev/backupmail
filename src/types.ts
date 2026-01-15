@@ -2,7 +2,7 @@
  * Core types and interfaces for mailbak
  */
 
-export type ProviderType = 'gmail' | 'imap';
+export type ProviderType = 'gmail' | 'imap' | 'jmap';
 
 export type ExportFormat = 'mbox' | 'eml' | 'json' | 'pst';
 
@@ -68,6 +68,12 @@ export interface ImapAccount extends Account {
 export interface GmailAccount extends Account {
   type: 'gmail';
   refreshToken: string;
+}
+
+export interface JmapAccount extends Account {
+  type: 'jmap';
+  sessionUrl: string; // JMAP session resource URL (e.g., https://api.fastmail.com/jmap/session)
+  username: string;
 }
 
 export interface BackupOptions {

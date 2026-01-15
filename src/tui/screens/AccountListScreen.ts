@@ -81,10 +81,13 @@ export class AccountListScreen {
       id: 'account-list',
       width: 70,
       height: Math.min(this.accounts.length + 2, 15),
-      options: this.accounts.map(acc => ({
-        name: `${acc.type === 'gmail' ? theme.icons.email : '✉️'}  ${acc.email}`,
-        description: `${acc.type.toUpperCase()} - Added ${new Date(acc.createdAt).toLocaleDateString()}`,
-      })),
+      options: this.accounts.map(acc => {
+        const icon = acc.type === 'gmail' ? theme.icons.email : acc.type === 'jmap' ? '🔗' : '✉️';
+        return {
+          name: `${icon}  ${acc.email}`,
+          description: `${acc.type.toUpperCase()} - Added ${new Date(acc.createdAt).toLocaleDateString()}`,
+        };
+      }),
       position: 'relative',
       left: 10,
       top: 8,
