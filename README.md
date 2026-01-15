@@ -5,7 +5,7 @@
 [![npm version](https://badge.fury.io/js/mailbak.svg)](https://www.npmjs.com/package/mailbak)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Fast and secure email backup tool supporting Gmail, IMAP servers, and multiple export formats. Features both CLI and an interactive cyberpunk-themed TUI.
+Fast and secure email backup tool supporting Gmail, JMAP (Fastmail), IMAP servers, and multiple export formats. Features both CLI and an interactive cyberpunk-themed TUI.
 
 ## 📸 Screenshots
 
@@ -27,6 +27,7 @@ Fast and secure email backup tool supporting Gmail, IMAP servers, and multiple e
 - 📦 **Multiple Formats** - Export to MBOX, EML, and JSON
 - 🔐 **Secure** - OAuth2 for Gmail, encrypted credential storage
 - 🚀 **Fast** - Built with Bun for maximum performance
+- 🔗 **JMAP Support** - Modern email protocol for Fastmail and compatible servers
 - 📁 **Flexible** - Backup to local storage, home directory, or custom paths
 - 🔄 **Migration** - Transfer emails between different accounts
 - 💾 **Zero Dependencies** - Uses Bun's built-in features
@@ -122,9 +123,28 @@ Config stored in `~/.mailbak/`:
 ## 🌟 Supported Providers
 
 - ✅ Gmail (OAuth2)
+- ✅ JMAP (Fastmail and any JMAP-compliant server)
 - ✅ Generic IMAP
 - ✅ SpaceMail
 - ✅ Any IMAP-compatible service
+
+### JMAP Support
+
+[JMAP](https://jmap.io/) is the modern, open standard for email access (RFC 8620, RFC 8621). It's faster and more efficient than IMAP, especially for mobile and web applications.
+
+**Supported JMAP providers:**
+- Fastmail (pre-configured)
+- Any JMAP-compliant server (custom URL)
+
+```bash
+# Add a JMAP account via CLI
+mailbak auth add
+# Select "JMAP (Fastmail, etc.)"
+
+# Or use the TUI
+mailbak
+# Navigate to "Add Account" → "JMAP (Fastmail, etc.)"
+```
 
 ## 💻 Development
 
