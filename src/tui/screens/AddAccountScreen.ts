@@ -8,29 +8,32 @@ import {
   SelectRenderable,
   SelectRenderableEvents,
   InputRenderable,
-  InputRenderableEvents,
-  type CliRenderer 
+  type CliRenderer
 } from '@opentui/core';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { bindInputSubmit } from '../utils/input-submit';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
 import { getConfigManager } from '../../utils/config';
 import { ImapProvider } from '../../providers/imap';
 import { JmapProvider } from '../../providers/jmap';
 import type { ImapAccount, JmapAccount } from '../../types';
 
-enum AddAccountStep {
-  CHOOSE_PROVIDER = 'choose_provider',
-  ENTER_EMAIL = 'enter_email',
-  ENTER_HOST = 'enter_host',
-  ENTER_PORT = 'enter_port',
-  ENTER_PASSWORD = 'enter_password',
-  ENTER_JMAP_URL = 'enter_jmap_url',
-  TESTING = 'testing',
-  SUCCESS = 'success',
-  ERROR = 'error',
-}
+const AddAccountStep = {
+  CHOOSE_PROVIDER: 'choose_provider',
+  ENTER_EMAIL: 'enter_email',
+  ENTER_HOST: 'enter_host',
+  ENTER_PORT: 'enter_port',
+  ENTER_PASSWORD: 'enter_password',
+  ENTER_JMAP_URL: 'enter_jmap_url',
+  TESTING: 'testing',
+  SUCCESS: 'success',
+  ERROR: 'error',
+} as const;
+
+type AddAccountStep = typeof AddAccountStep[keyof typeof AddAccountStep];
 
 export class AddAccountScreen {
   private renderer: CliRenderer;
@@ -57,6 +60,7 @@ export class AddAccountScreen {
   private passwordInput?: InputRenderable;
   private jmapUrlInput?: InputRenderable;
   private statusText?: TextRenderable;
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
   constructor(renderer: CliRenderer, navigation: NavigationManager) {
     this.renderer = renderer;
@@ -98,11 +102,11 @@ export class AddAccountScreen {
     this.container.add(this.footer.getContainer());
 
     // Handle keyboard shortcuts
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'escape') {
         this.navigation.back();
       }
-    });
+    }));
 
     // Start with provider selection
     this.showProviderSelection();
@@ -112,7 +116,7 @@ export class AddAccountScreen {
     // Remove all children from content container
     const children = this.contentContainer.getChildren();
     children.forEach(child => {
-      this.contentContainer.remove(child.id);
+      this.contentContainer.remove(child);
     });
     
     // Clear references
@@ -220,7 +224,7 @@ export class AddAccountScreen {
     });
     this.contentContainer.add(this.emailInput);
 
-    this.emailInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+    bindInputSubmit(this.emailInput, (value) => {
       this.email = value;
       if (this.providerType === 'spacemail') {
         this.showPasswordInput();
@@ -259,7 +263,7 @@ export class AddAccountScreen {
     });
     this.contentContainer.add(this.hostInput);
 
-    this.hostInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+    bindInputSubmit(this.hostInput, (value) => {
       this.host = value;
       this.showPortInput();
     });
@@ -295,10 +299,10 @@ export class AddAccountScreen {
     // Set default value
     this.portInput.value = '993';
 
-    this.portInput.on(InputRenderableEvents.CHANGE, (value: string) => {
-      this.port = value || '993';
+    bindInputSubmit(this.portInput, (value) => {
+      this.port = value;
       this.showPasswordInput();
-    });
+    }, { fallbackValue: '993' });
 
     this.portInput.focus();
   }
@@ -368,7 +372,7 @@ export class AddAccountScreen {
     });
     this.contentContainer.add(this.jmapUrlInput);
 
-    this.jmapUrlInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+    bindInputSubmit(this.jmapUrlInput, (value) => {
       this.jmapUrl = value;
       this.showJmapPasswordInput();
     });
@@ -401,7 +405,7 @@ export class AddAccountScreen {
     });
     this.contentContainer.add(this.passwordInput);
 
-    this.passwordInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+    bindInputSubmit(this.passwordInput, (value) => {
       this.password = value;
       this.testJmapConnection();
     });
@@ -449,7 +453,11 @@ export class AddAccountScreen {
 
       this.showJmapSuccess();
     } catch (error) {
-      this.showError(`${error}`);
+      if (error instanceof Error) {
+        this.showError(error.message);
+        return;
+      }
+      this.showError(String(error));
     }
   }
 
@@ -474,13 +482,13 @@ export class AddAccountScreen {
     ]);
 
     // Handle Enter to continue
-    const enterHandler = (key: any) => {
+    const removeEnterHandler = onKeypress(this.renderer, (key) => {
       if (key.name === 'return' || key.name === 'enter') {
-        this.renderer.keyInput.off('keypress', enterHandler);
+        removeEnterHandler();
         this.navigation.back();
       }
-    };
-    this.renderer.keyInput.on('keypress', enterHandler);
+    });
+    this.keypressCleanups.push(removeEnterHandler);
   }
 
   private showPasswordInput() {
@@ -508,7 +516,7 @@ export class AddAccountScreen {
     });
     this.contentContainer.add(this.passwordInput);
 
-    this.passwordInput.on(InputRenderableEvents.CHANGE, (value: string) => {
+    bindInputSubmit(this.passwordInput, (value) => {
       this.password = value;
       this.testConnection();
     });
@@ -558,7 +566,11 @@ export class AddAccountScreen {
 
       this.showSuccess();
     } catch (error) {
-      this.showError(`${error}`);
+      if (error instanceof Error) {
+        this.showError(error.message);
+        return;
+      }
+      this.showError(String(error));
     }
   }
 
@@ -583,13 +595,13 @@ export class AddAccountScreen {
     ]);
 
     // Handle Enter to continue
-    const enterHandler = (key: any) => {
+    const removeEnterHandler = onKeypress(this.renderer, (key) => {
       if (key.name === 'return' || key.name === 'enter') {
-        this.renderer.keyInput.off('keypress', enterHandler);
+        removeEnterHandler();
         this.navigation.back();
       }
-    };
-    this.renderer.keyInput.on('keypress', enterHandler);
+    });
+    this.keypressCleanups.push(removeEnterHandler);
   }
 
   private showError(message: string) {
@@ -607,13 +619,13 @@ export class AddAccountScreen {
     this.contentContainer.add(this.statusText);
 
     // Handle Enter to retry
-    const enterHandler = (key: any) => {
+    const removeEnterHandler = onKeypress(this.renderer, (key) => {
       if (key.name === 'return' || key.name === 'enter') {
-        this.renderer.keyInput.off('keypress', enterHandler);
+        removeEnterHandler();
         this.showProviderSelection();
       }
-    };
-    this.renderer.keyInput.on('keypress', enterHandler);
+    });
+    this.keypressCleanups.push(removeEnterHandler);
   }
 
   show() {
@@ -621,10 +633,11 @@ export class AddAccountScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     if (this.providerMenu) this.providerMenu.destroy();

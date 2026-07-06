@@ -13,8 +13,13 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
 import { getConfigManager } from '../../utils/config';
 import type { Account } from '../../types';
+
+interface AccountListScreenData {
+  readonly nextScreen?: 'backup-config';
+}
 
 export class AccountListScreen {
   private renderer: CliRenderer;
@@ -26,8 +31,9 @@ export class AccountListScreen {
   private noAccountsText?: TextRenderable;
   private accounts: Account[] = [];
   private nextScreen?: string;
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
-  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: any) {
+  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: AccountListScreenData) {
     this.renderer = renderer;
     this.navigation = navigation;
     this.nextScreen = data?.nextScreen;
@@ -72,7 +78,11 @@ export class AccountListScreen {
         this.showAccountList();
       }
     } catch (error) {
-      this.showError(`Failed to load accounts: ${error}`);
+      if (error instanceof Error) {
+        this.showError(`Failed to load accounts: ${error.message}`);
+        return;
+      }
+      this.showError(`Failed to load accounts: ${String(error)}`);
     }
   }
 
@@ -101,11 +111,11 @@ export class AccountListScreen {
     });
 
     // Handle keyboard shortcuts
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'escape') {
         this.navigation.back();
       }
-    });
+    }));
 
     this.menu.focus();
   }
@@ -121,13 +131,13 @@ export class AccountListScreen {
     });
     this.container.add(this.noAccountsText);
 
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'return' || key.name === 'enter') {
         this.navigation.navigate('add-account');
       } else if (key.name === 'escape') {
         this.navigation.back();
       }
-    });
+    }));
   }
 
   private showError(message: string) {
@@ -141,11 +151,11 @@ export class AccountListScreen {
     });
     this.container.add(errorText);
 
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'escape') {
         this.navigation.back();
       }
-    });
+    }));
   }
 
   private handleSelection(index: number) {
@@ -165,10 +175,11 @@ export class AccountListScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     if (this.menu) this.menu.destroy();

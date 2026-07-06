@@ -13,6 +13,7 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
 
 export interface MainMenuOption {
   name: string;
@@ -30,6 +31,7 @@ export class MainMenuScreen {
   private menu: SelectRenderable;
   private asciiArt: TextRenderable;
   private options: MainMenuOption[];
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
   constructor(renderer: CliRenderer, navigation: NavigationManager) {
     this.renderer = renderer;
@@ -136,11 +138,11 @@ export class MainMenuScreen {
     });
 
     // Handle keyboard shortcuts - only 'q' exits, NOT esc!
-    renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(renderer, (key) => {
       if (key.name === 'q') {
         this.handleExit();
       }
-    });
+    }));
 
     // Focus the menu
     this.menu.focus();
@@ -180,10 +182,11 @@ export class MainMenuScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     this.asciiArt.destroy();

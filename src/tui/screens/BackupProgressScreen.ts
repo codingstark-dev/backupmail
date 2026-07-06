@@ -12,6 +12,7 @@ import { Footer } from '../components/Footer';
 import { ProgressBar } from '../components/ProgressBar';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
 import type { Account, ExportFormat } from '../../types';
 import { getProviderForAccount } from '../../provider-factory';
 import { getConfigManager } from '../../utils/config';
@@ -26,6 +27,13 @@ export interface BackupStats {
   startTime: number;
   backupSize: number;
   folderStats: Map<string, { messages: number; size: number }>;
+}
+
+interface BackupProgressScreenData {
+  readonly account?: Account;
+  readonly folders?: readonly string[];
+  readonly formats?: readonly ExportFormat[];
+  readonly outputDir?: string;
 }
 
 export class BackupProgressScreen {
@@ -45,14 +53,21 @@ export class BackupProgressScreen {
   private outputDir: string;
   private stats: BackupStats;
   private cancelled = false;
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
-  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: any) {
+  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: BackupProgressScreenData) {
     this.renderer = renderer;
     this.navigation = navigation;
-    this.account = data?.account;
-    this.folders = data?.folders || [];
-    this.formats = data?.formats || ['mbox'];
-    this.outputDir = data?.outputDir || './email-backups';
+
+    const account = data?.account;
+    if (!account) {
+      throw new Error('No account provided');
+    }
+
+    this.account = account;
+    this.folders = [...(data?.folders ?? [])];
+    this.formats = [...(data?.formats ?? ['mbox'])];
+    this.outputDir = data?.outputDir ?? './email-backups';
 
     this.stats = {
       totalMessages: 0,
@@ -133,13 +148,13 @@ export class BackupProgressScreen {
     this.container.add(this.footer.getContainer());
 
     // Handle keyboard shortcuts
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.ctrl && key.name === 'c') {
         this.cancelled = true;
         this.statusText.content = 'Cancelling backup...';
         this.statusText.fg = theme.colors.warning;
       }
-    });
+    }));
 
     // Start backup automatically
     this.startBackup();
@@ -247,7 +262,8 @@ export class BackupProgressScreen {
         });
       }
     } catch (error) {
-      this.statusText.content = `Error: ${error}`;
+      const message = error instanceof Error ? error.message : String(error);
+      this.statusText.content = `Error: ${message}`;
       this.statusText.fg = theme.colors.error;
     }
   }
@@ -265,10 +281,11 @@ export class BackupProgressScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     this.overallProgress.destroy();

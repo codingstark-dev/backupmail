@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "bun run bin/mailbak.ts",
-    "build": "bun build bin/mailbak.ts --outdir=dist --target=bun --entrypoints bin/mailbak.ts",
+    "build": "bun build bin/mailbak.ts --outdir=dist --target=bun --entrypoints bin/mailbak.ts --external '@opentui/core-*'",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },
@@ -37,7 +37,7 @@
   },
   "homepage": "https://github.com/codingstark-dev/backupmail#readme",
   "dependencies": {
-    "@opentui/core": "^0.1.72",
+    "@opentui/core": "^0.4.3",
     "googleapis": "^144.0.0",
     "imap": "^0.8.19",
     "mailbak": "^0.2.0",

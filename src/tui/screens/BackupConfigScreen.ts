@@ -8,25 +8,32 @@ import {
   SelectRenderable,
   SelectRenderableEvents,
   InputRenderable,
-  InputRenderableEvents,
-  type CliRenderer 
+  type CliRenderer
 } from '@opentui/core';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { bindInputSubmit } from '../utils/input-submit';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
 import type { Account, ExportFormat, Folder } from '../../types';
 import { getProviderForAccount } from '../../provider-factory';
 import { getConfigManager } from '../../utils/config';
 import * as fs from 'fs';
 import { homedir } from 'os';
 
-enum ConfigStep {
-  LOADING_FOLDERS = 'loading_folders',
-  SELECT_EXPORT_LOCATION = 'select_export_location',
-  SELECT_FORMATS = 'select_formats',
-  CONFIRM = 'confirm',
-  ERROR = 'error',
+const ConfigStep = {
+  LOADING_FOLDERS: 'loading_folders',
+  SELECT_EXPORT_LOCATION: 'select_export_location',
+  SELECT_FORMATS: 'select_formats',
+  CONFIRM: 'confirm',
+  ERROR: 'error',
+} as const;
+
+type ConfigStep = typeof ConfigStep[keyof typeof ConfigStep];
+
+interface BackupConfigScreenData {
+  readonly account?: Account;
 }
 
 export class BackupConfigScreen {
@@ -49,15 +56,17 @@ export class BackupConfigScreen {
   private formatMenu?: SelectRenderable;
   private locationInput?: InputRenderable;
   private confirmMenu?: SelectRenderable;
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
-  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: any) {
+  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: BackupConfigScreenData) {
     this.renderer = renderer;
     this.navigation = navigation;
-    this.account = data?.account;
 
-    if (!this.account) {
+    const account = data?.account;
+    if (!account) {
       throw new Error('No account provided');
     }
+    this.account = account;
 
     // Create container
     this.container = new BoxRenderable(renderer, {
@@ -95,11 +104,11 @@ export class BackupConfigScreen {
     this.container.add(this.footer.getContainer());
 
     // Handle keyboard shortcuts
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'escape') {
         this.navigation.back();
       }
-    });
+    }));
 
     // Start loading folders
     this.loadFolders();
@@ -108,7 +117,7 @@ export class BackupConfigScreen {
   private clearContent() {
     const children = this.contentContainer.getChildren();
     children.forEach(child => {
-      this.contentContainer.remove(child.id);
+      this.contentContainer.remove(child);
     });
     
     this.statusText = undefined;
@@ -149,7 +158,11 @@ export class BackupConfigScreen {
       // Move to export location selection
       this.showExportLocationSelection();
     } catch (error) {
-      this.showError(`${error}`);
+      if (error instanceof Error) {
+        this.showError(error.message);
+        return;
+      }
+      this.showError(String(error));
     }
   }
 
@@ -233,10 +246,10 @@ export class BackupConfigScreen {
     // Set default value
     this.locationInput.value = './email-backups';
 
-    this.locationInput.on(InputRenderableEvents.CHANGE, (value: string) => {
-      this.exportLocation = value || './email-backups';
+    bindInputSubmit(this.locationInput, (value) => {
+      this.exportLocation = value;
       this.showFormatSelection();
-    });
+    }, { fallbackValue: './email-backups' });
 
     this.locationInput.focus();
   }
@@ -388,13 +401,13 @@ export class BackupConfigScreen {
     });
     this.contentContainer.add(this.statusText);
 
-    const retryHandler = (key: any) => {
+    const removeRetryHandler = onKeypress(this.renderer, (key) => {
       if (key.name === 'return' || key.name === 'enter') {
-        this.renderer.keyInput.off('keypress', retryHandler);
+        removeRetryHandler();
         this.loadFolders();
       }
-    };
-    this.renderer.keyInput.on('keypress', retryHandler);
+    });
+    this.keypressCleanups.push(removeRetryHandler);
   }
 
   show() {
@@ -402,10 +415,11 @@ export class BackupConfigScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     if (this.statusText) this.statusText.destroy();

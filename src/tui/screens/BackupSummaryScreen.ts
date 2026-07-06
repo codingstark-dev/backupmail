@@ -13,6 +13,25 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { theme } from '../utils/theme';
 import type { NavigationManager } from '../utils/navigation';
+import { cleanupKeypressHandlers, onKeypress, type KeypressCleanup } from '../utils/key-events';
+
+interface BackupFolderSummary {
+  readonly folder: string;
+  readonly messages: number;
+  readonly size: number;
+}
+
+interface BackupSummary {
+  readonly duration: string;
+  readonly totalFolders: number;
+  readonly totalMessages: number;
+  readonly folders: readonly BackupFolderSummary[];
+}
+
+interface BackupSummaryScreenData {
+  readonly summary?: BackupSummary;
+  readonly backupDir?: string;
+}
 
 export class BackupSummaryScreen {
   private renderer: CliRenderer;
@@ -22,14 +41,22 @@ export class BackupSummaryScreen {
   private footer: Footer;
   private summaryText: TextRenderable;
   private menu: SelectRenderable;
-  private summary: any;
+  private summary: BackupSummary;
   private backupDir: string;
+  private readonly keypressCleanups: KeypressCleanup[] = [];
 
-  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: any) {
+  constructor(renderer: CliRenderer, navigation: NavigationManager, data?: BackupSummaryScreenData) {
     this.renderer = renderer;
     this.navigation = navigation;
-    this.summary = data?.summary;
-    this.backupDir = data?.backupDir;
+
+    const summary = data?.summary;
+    const backupDir = data?.backupDir;
+    if (!summary || backupDir === undefined) {
+      throw new Error('No backup summary provided');
+    }
+
+    this.summary = summary;
+    this.backupDir = backupDir;
 
     // Create container
     this.container = new BoxRenderable(renderer, {
@@ -91,11 +118,11 @@ export class BackupSummaryScreen {
     });
 
     // Handle keyboard shortcuts
-    this.renderer.keyInput.on('keypress', (key) => {
+    this.keypressCleanups.push(onKeypress(this.renderer, (key) => {
       if (key.name === 'q') {
         this.navigation.reset('main-menu');
       }
-    });
+    }));
 
     this.menu.focus();
   }
@@ -133,10 +160,11 @@ export class BackupSummaryScreen {
   }
 
   hide() {
-    this.renderer.root.remove(this.container.id);
+    this.renderer.root.remove(this.container);
   }
 
   destroy() {
+    cleanupKeypressHandlers(this.keypressCleanups);
     this.header.destroy();
     this.footer.destroy();
     this.summaryText.destroy();
