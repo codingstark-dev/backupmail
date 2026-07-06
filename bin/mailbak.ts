@@ -11,7 +11,7 @@ import { addAccount, listAccounts, removeAccount } from '../src/cli/commands/aut
 import { logger } from '../src/utils/logger';
 import { MailbakTuiApp } from '../src/tui/app';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.3';
 
 async function main() {
   // Check if any arguments were provided

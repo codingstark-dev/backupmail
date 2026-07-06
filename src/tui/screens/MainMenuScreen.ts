@@ -81,7 +81,7 @@ export class MainMenuScreen {
 
     // Create CYBERPUNK header
     this.header = new Header(renderer, {
-      title: '◆ MAILBAK v0.2.0 ◆',
+      title: '◆ MAILBAK v0.2.3 ◆',
       subtitle: 'UNIVERSAL EMAIL BACKUP SYSTEM',
     });
     this.container.add(this.header.getContainer());
